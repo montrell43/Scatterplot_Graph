@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Scatterplot Graph</title>
+  <title>Choropleth Map</title>
   <link rel="stylesheet" href="style.css"/>
-
 </head>
 <body>
-  <h1 id="title">Doping in Professional Bicycle Racing</h1>
+  <h1 id="title">Educational Attainment</h1>
   <div id="scatter-container">
-    <p>35 Fastest times up Alpe d'Huez</p>
-    <svg id="scatterplot" width="900" height="600"></svg>
+    <p id="description">Adults 25 and up with Degrees</p>
+    <svg id="choropleth" width="960" height="600"></svg>
   </div>
-  <div id="tooltip" class="hidden"></div> <!-- THIS should be outside #chart -->
+  <div id="tooltip" class="tooltip" data-education=""></div> <!-- THIS should be outside #chart -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

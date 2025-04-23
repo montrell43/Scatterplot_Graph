@@ -1,104 +1,86 @@
-const url = 'https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/cyclist-data.json';
+const educationUrl = 'https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/for_user_education.json';
+const countyUrl = 'https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/counties.json';
 
-const width = 900;
+const width = 960;
 const height = 600;
-const padding = 60;
 
-const svg = d3.select('#scatterplot');
-const tooltip = d3.select("#tooltip");
+const svg = d3.select('#choropleth');
+const tooltip = d3.select('#tooltip');
 
-fetch(url)
-  .then(res => res.json())
-  .then(data => {
-    console.log('Data loaded:', data);
-    // We'll continue from here with scales, axes, and plotting
+Promise.all([
+  d3.json(countyUrl),
+  d3.json(educationUrl)
+]).then(([us, education]) => {
+  const counties = topojson.feature(us, us.objects.counties).features;
+  const path = d3.geoPath();
 
-    const parseTime = d3.timeParse("%M:%S");
+  const colorScale = d3.scaleThreshold()
+    .domain([10, 20, 30, 40, 50, 60, 70, 80])
+    .range(d3.schemeBlues[9]);
 
-    data.forEach(d => {
-      d.Time = parseTime(d.Time);
-      d.Year = new Date(d.Year, 0); // Year only (Month = 0)
+  const educationMap = new Map(education.map(d => [d.fips, d]));
+
+  svg.selectAll("path")
+    .data(counties)
+    .enter()
+    .append("path")
+    .attr("class", "county")
+    .attr("d", path)
+    .attr("fill", d => {
+      const result = educationMap.get(d.id);
+      return result ? colorScale(result.bachelorsOrHigher) : "#ccc";
+    })
+    .attr("data-fips", d => d.id)
+    .attr("data-education", d => {
+      const result = educationMap.get(d.id);
+      return result ? result.bachelorsOrHigher : 0;
+    })
+    .on("mouseover", (event, d) => {
+      const county = educationMap.get(d.id);
+      tooltip
+        .style("opacity", 1)
+        .html(`${county.area_name}, ${county.state}: ${county.bachelorsOrHigher}%`)
+        .attr("data-education", county.bachelorsOrHigher)
+        .style("left", (event.pageX + 10) + "px")
+        .style("top", (event.pageY - 28) + "px");
+    })
+    .on("mouseout", () => {
+      tooltip.style("opacity", 0);
     });
 
-    // Define scales
-    const xScale = d3.scaleTime()
-      .domain(d3.extent(data, d => d.Year))
-      .range([padding, width - padding]);
-
-    const yScale = d3.scaleTime()
-      .domain(d3.extent(data, d => d.Time))
-      .range([padding, height - padding]); // Reversed: smaller times are "higher" on screen
-
-    // Create x-axis
-    const xAxis = d3.axisBottom(xScale)
-      .tickFormat(d3.timeFormat("%Y"));
-
-// Create y-axis
-    const yAxis = d3.axisLeft(yScale)
-      .tickFormat(d3.timeFormat("%M:%S"));
-
-    svg.append("g")
-      .attr("id", "x-axis")
-      .attr("transform", `translate(0, ${height - padding})`)
-      .call(xAxis);
-
-    svg.append("g")
-      .attr("id", "y-axis")
-      .attr("transform", `translate(${padding}, 0)`)
-      .call(yAxis);
-
-svg.selectAll(".dot")
-      .data(data)
-      .enter()
-      .append("circle")
-      .attr("class", "dot")
-      .attr("cx", d => xScale(d.Year))
-      .attr("cy", d => yScale(d.Time))
-      .attr("r", 6)
-      .attr("fill", d => d.Doping ? "#d62728" : "#1f77b4")
-      .attr("data-xvalue", d => d.Year.toISOString())
-      .attr("data-yvalue", d => d.Time.toISOString())
-      .on("mouseover", (event, d) => {
-    tooltip
-      .style("opacity", 1)
-      .html(`
-        <strong>${d.Name}</strong>: ${d.Nationality}<br/>
-        Year: ${d.Year.getFullYear()}, Time: ${d3.timeFormat("%M:%S")(d.Time)}<br/>
-        ${d.Doping ? d.Doping : ""}
-      `)
-      .attr("data-year", d.Year.getFullYear())
-      .style("left", (event.pageX + 10) + "px")
-      .style("top", (event.pageY - 28) + "px");
-  })
-  .on("mouseout", () => {
-    tooltip.style("opacity", 0);
-  });
-
   // Legend
-const legend = svg.append("g")
-.attr("id", "legend")
-.attr("transform", `translate(${width - 200}, ${height / 2 - 40})`);
+  const legendWidth = 300;
+  const legendHeight = 10;
+  const legendThresholds = colorScale.thresholds();
+  const legendX = d3.scaleLinear()
+    .domain([d3.min(legendThresholds), d3.max(legendThresholds)])
+    .range([0, legendWidth]);
 
-const legendData = [
-{ color: "#d62728", text: "Riders with doping allegations" },
-{ color: "#1f77b4", text: "No doping allegations" }
-];
+  const legendAxis = d3.axisBottom(legendX)
+    .tickSize(13)
+    .tickValues(legendThresholds)
+    .tickFormat(d => d + "%");
 
-legend.selectAll("rect")
-.data(legendData)
-.enter()
-.append("rect")
-.attr("x", 0)
-.attr("y", (d, i) => i * 25)
-.attr("width", 20)
-.attr("height", 20)
-.attr("fill", d => d.color);
+  const legend = svg.append("g")
+    .attr("id", "legend")
+    .attr("transform", `translate(${width / 2 - legendWidth / 2}, ${height - 40})`);
 
-legend.selectAll("text")
-.data(legendData)
-.enter()
-.append("text")
-.attr("x", 30)
-.attr("y", (d, i) => i * 25 + 15)
-.text(d => d.text);
-  });
+  legend.selectAll("rect")
+    .data(legendThresholds)
+    .enter()
+    .append("rect")
+    .attr("x", d => legendX(d))
+    .attr("y", 0)
+    .attr("width", (d, i) => {
+      const next = legendThresholds[i + 1] || legendX.domain()[1];
+      return legendX(next) - legendX(d);
+    })
+    .attr("height", legendHeight)
+    .attr("fill", d => colorScale(d));
+
+  legend.append("g")
+    .attr("transform", `translate(0, ${legendHeight})`)
+    .call(legendAxis)
+    .select(".domain")
+    .remove();
+});
